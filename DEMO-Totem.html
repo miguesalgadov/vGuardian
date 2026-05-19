@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>eGuardian AI Concierge — Tótem (Demo)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600&display=swap');
+:root{--bg:#03060f;--bg2:#04122e;--panel:rgba(255,255,255,.05);--stroke:rgba(255,255,255,.10);
+ --accent:#2e8bff;--accent2:#19e0ff;--text:#eaf1ff;--muted:#7d8db5}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;
+ background:radial-gradient(1200px 900px at 50% -10%,#0a1b3d 0%,var(--bg) 60%);
+ font-family:'Manrope',system-ui,sans-serif;color:var(--text);padding:18px}
+.frame{width:min(100%,520px);aspect-ratio:1080/1920;max-height:96vh;position:relative;
+ display:flex;flex-direction:column;border:1px solid var(--stroke);border-radius:30px;
+ overflow:hidden;background:linear-gradient(180deg,#050b1c 0%,#020611 100%);
+ box-shadow:0 50px 120px -30px #000, inset 0 1px 0 rgba(255,255,255,.06)}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;
+ border-bottom:1px solid var(--stroke);backdrop-filter:blur(10px)}
+.brand{display:flex;align-items:center;gap:12px}
+.brand .m{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
+ font-family:'Sora';font-weight:700;font-size:22px;color:#fff;
+ background:linear-gradient(145deg,var(--accent),#0c3a8a);box-shadow:0 8px 24px -8px var(--accent)}
+.brand .n{font-family:'Sora';font-weight:600;font-size:17px;letter-spacing:.5px}
+.brand .s{font-size:11px;color:var(--muted);letter-spacing:3px;text-transform:uppercase}
+.bar .r{display:flex;align-items:center;gap:14px}
+.pill{display:flex;align-items:center;gap:7px;font-size:12px;padding:7px 12px;border-radius:999px;
+ border:1px solid var(--stroke);background:var(--panel);color:#9be9c4}
+.pill i{width:7px;height:7px;border-radius:50%;background:#27e08a;box-shadow:0 0 10px #27e08a}
+.clock{font-family:'Sora';font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ text-align:center;position:relative;padding:30px}
+.welcome .glow{position:absolute;inset:0;pointer-events:none;
+ background:radial-gradient(420px 420px at 50% 38%,rgba(46,139,255,.18),transparent 70%)}
+.welcome h1{font-family:'Sora';font-weight:700;font-size:46px;margin:30px 0 6px;letter-spacing:-1px;animation:rise .8s .1s both}
+.welcome .sub{font-size:20px;color:#cfe0ff;animation:rise .8s .2s both}
+.welcome .hint{font-size:13px;color:var(--muted);margin-top:10px;animation:rise .8s .3s both}
+.cta{margin-top:46px;padding:20px 46px;border-radius:999px;border:1px solid rgba(46,139,255,.5);
+ background:linear-gradient(180deg,rgba(46,139,255,.22),rgba(46,139,255,.06));color:#fff;
+ font-family:'Sora';font-size:17px;font-weight:600;cursor:pointer;backdrop-filter:blur(8px);
+ transition:.25s;animation:rise .8s .4s both, pulse 3s 1.4s infinite}
+.cta:hover{transform:translateY(-2px);box-shadow:0 18px 50px -16px var(--accent)}
+.welcome .foot{position:absolute;bottom:26px;font-size:11px;color:var(--muted)}
+.session{flex:1;display:none;flex-direction:column;padding:14px 20px 18px;min-height:0}
+.stage{display:flex;flex-direction:column;align-items:center;padding:8px 0 4px}
+.state{margin-top:8px;font-size:13px;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+.log{flex:1;overflow-y:auto;margin:12px 0;display:flex;flex-direction:column;gap:14px;padding-right:6px}
+.log::-webkit-scrollbar{width:5px}.log::-webkit-scrollbar-thumb{background:var(--stroke);border-radius:9px}
+.msg{display:flex;flex-direction:column;max-width:88%;animation:rise .5s both}
+.msg.user{align-self:flex-end;align-items:flex-end}
+.who{font-size:10.5px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin:0 4px 5px}
+.bubble{padding:14px 17px;border-radius:18px;font-size:15px;line-height:1.5;border:1px solid var(--stroke)}
+.msg.bot .bubble{background:var(--panel);border-bottom-left-radius:5px}
+.msg.user .bubble{background:linear-gradient(145deg,var(--accent),#1456b8);
+ border-bottom-right-radius:5px;color:#fff;border-color:transparent}
+.msg.operator .bubble{background:rgba(39,224,138,.10);border-color:rgba(39,224,138,.35)}
+.msg.system .bubble{background:transparent;border-style:dashed;color:var(--muted);font-size:13px}
+.msg.alert .bubble{background:rgba(255,93,108,.12);border-color:rgba(255,93,108,.45);color:#ffd5d9}
+.quick{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{padding:9px 14px;border-radius:999px;border:1px solid var(--stroke);background:var(--panel);
+ color:#cfe0ff;font-size:12.5px;cursor:pointer;transition:.2s;font-family:'Manrope'}
+.chip:hover{border-color:var(--accent);color:#fff;background:rgba(46,139,255,.14)}
+.composer{display:flex;gap:10px;align-items:center}
+.field{flex:1;padding:15px 18px;border-radius:16px;border:1px solid var(--stroke);
+ background:rgba(255,255,255,.04);color:var(--text);font-size:15px;font-family:'Manrope';outline:none}
+.field:focus{border-color:var(--accent);background:rgba(46,139,255,.08)}
+.field::placeholder{color:var(--muted)}
+.mic,.send{width:52px;height:52px;border-radius:16px;border:1px solid var(--stroke);
+ background:var(--panel);color:#cfe0ff;display:grid;place-items:center;cursor:pointer;
+ transition:.2s;flex-shrink:0}
+.mic:hover,.send:hover{border-color:var(--accent);color:#fff}
+.send{background:linear-gradient(145deg,var(--accent),#1456b8);border-color:transparent;color:#fff}
+.mic.on{background:rgba(34,211,238,.18);border-color:#22d3ee;color:#22d3ee;animation:pulse 1.3s infinite}
+.end{margin-top:14px;align-self:center;background:none;border:none;color:var(--muted);
+ font-size:12.5px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;padding:6px 10px}
+.end:hover{color:#ff8a93}
+.legal{font-size:10px;color:#4d5b80;text-align:center;padding:12px 22px;
+ border-top:1px solid var(--stroke);line-height:1.5}
+.avatar{position:relative;width:190px;height:190px;display:grid;place-items:center}
+.core{width:96px;height:96px;border-radius:50%;position:relative;overflow:hidden;
+ background:radial-gradient(circle at 35% 30%,#fff 0%,var(--accent) 38%,#04122e 100%);
+ box-shadow:0 0 50px -6px var(--accent),inset 0 0 22px rgba(255,255,255,.25);
+ animation:breathe 4s ease-in-out infinite;transition:.4s}
+.scan{position:absolute;inset:0;animation:scan 3.2s linear infinite;
+ background:linear-gradient(180deg,transparent 45%,rgba(255,255,255,.28) 50%,transparent 55%)}
+.ring{position:absolute;border-radius:50%;border:1px solid var(--accent);opacity:.4}
+.r1{width:140px;height:140px;animation:spin 14s linear infinite reverse;opacity:.5}
+.r2{width:118px;height:118px;border-style:dotted;animation:spin 9s linear infinite;opacity:.35}
+.halo{width:188px;height:188px;border-style:dashed;animation:spin 28s linear infinite;opacity:.22}
+.bars{position:absolute;bottom:-2px;display:flex;align-items:flex-end;gap:3px;height:30px;opacity:0;transition:.3s}
+.bars span{width:3px;height:6px;border-radius:3px;background:var(--accent)}
+.avatar.speaking .bars,.avatar.listening .bars{opacity:.9}
+.avatar.speaking .bars span{animation:eq .55s ease-in-out infinite alternate}
+.avatar.listening .bars span{animation:eq .35s ease-in-out infinite alternate}
+.avatar.speaking .core{transform:scale(1.05);animation:none}
+.avatar.alert .core{animation:alert .6s ease-in-out infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes scan{0%{transform:translateY(-100%)}100%{transform:translateY(100%)}}
+@keyframes eq{from{height:5px}to{height:26px}}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@keyframes alert{0%,100%{transform:scale(1);box-shadow:0 0 50px -6px #ff5d6c}50%{transform:scale(1.06);box-shadow:0 0 70px 0 #ff5d6c}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(46,139,255,.4)}50%{box-shadow:0 0 0 14px rgba(46,139,255,0)}}
+</style>
+</head>
+<body>
+<div class="frame">
+  <header class="bar">
+    <div class="brand"><span class="m">e</span><div><div class="n">eGuardian</div><div class="s">AI Concierge</div></div></div>
+    <div class="r"><span class="pill"><i></i> En línea</span><span class="clock" id="clk">--:--</span></div>
+  </header>
+
+  <main class="welcome" id="welcome">
+    <div class="glow"></div>
+    <div class="avatar"><div class="halo ring"></div><div class="r1 ring"></div><div class="r2 ring"></div><div class="core"><div class="scan"></div></div></div>
+    <h1>Bienvenido</h1>
+    <p class="sub">Edificio Costanera Center</p>
+    <p class="hint">Conserjería virtual inteligente · disponible 24/7</p>
+    <button class="cta" id="start">Toque para comenzar</button>
+    <div class="foot">Atención por voz y texto · datos protegidos (Ley 19.628)</div>
+  </main>
+
+  <main class="session" id="session">
+    <div class="stage">
+      <div class="avatar" id="avatar"><div class="halo ring"></div><div class="r1 ring"></div><div class="r2 ring"></div><div class="core"><div class="scan"></div></div>
+        <div class="bars" id="bars"></div></div>
+      <div class="state" id="state">Le escucho</div>
+    </div>
+    <div class="log" id="log"></div>
+    <div class="quick" id="quick"></div>
+    <div class="composer">
+      <button class="mic" id="mic" title="Hablar">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </button>
+      <input class="field" id="field" placeholder="Escriba su mensaje…" />
+      <button class="send" id="send"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button>
+    </div>
+    <button class="end" id="end">Finalizar atención</button>
+  </main>
+
+  <footer class="legal">Este punto registra audio y video para fines de seguridad. Tratamiento conforme a la Ley N° 19.628 de Chile.</footer>
+</div>
+
+<script>
+const RESIDENTS=[{n:"Juan Pérez",apt:"302",auto:false},{n:"María González",apt:"1204",auto:true},
+ {n:"Carlos Soto",apt:"705",auto:false},{n:"Valentina Rivas",apt:"108",auto:false}];
+const norm=s=>s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
+function findRes(t){t=norm(t);let m=t.match(/\b0?(\d{2,4})\b/);if(m){let r=RESIDENTS.find(x=>x.apt===m[1]);if(r)return r;}
+ for(const r of RESIDENTS){for(const p of norm(r.n).split(" "))if(p.length>2&&t.includes(p))return r;}return null;}
+function intent(t){t=norm(t);
+ if(/(ayuda|emergencia|incendio|fuego|socorro|robo|asalto|herido|policia|ambulancia)/.test(t))return"emergency";
+ if(/(entrega|delivery|paquete|encomienda|pedido|repartidor|correos)/.test(t))return"delivery";
+ if(/(operador|conserj|persona real|humano|hablar con alguien|reclamo|queja)/.test(t))return"escalate";
+ if(/(visita|vengo a|busco a|voy al|al depto|departamento)/.test(t))return"visit";
+ if(/(horario|piscina|gimnasio|quincho|estacionamiento|direccion|donde queda|wifi)/.test(t))return"info";
+ if(/(hola|buenas|buenos dias|que tal)/.test(t)&&t.length<30)return"greeting";return"unknown";}
+
+const $=id=>document.getElementById(id);
+const av=$("avatar"),log=$("log"),st=$("state");let ctx={stage:null,res:null};
+const bars=$("bars");for(let i=0;i<22;i++){let s=document.createElement("span");s.style.animationDelay=(i*0.045)+"s";bars.appendChild(s);}
+function clk(){let d=new Date();$("clk").textContent=d.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"});}
+clk();setInterval(clk,1000);
+function mode(m){av.className="avatar "+m;st.textContent={listening:"Escuchando…",thinking:"Procesando…",
+ speaking:"eGuardian responde",alert:"⚠ Alerta activa",idle:ctx.stage==="op"?"Operador en línea":"Le escucho"}[m]||"Le escucho";}
+const synth=window.speechSynthesis;
+function speak(t,cb){if(!synth){cb&&cb();return;}synth.cancel();let u=new SpeechSynthesisUtterance(t);
+ u.lang="es-CL";u.rate=1.02;let v=synth.getVoices().find(x=>/es/i.test(x.lang));if(v)u.voice=v;
+ u.onend=()=>cb&&cb();synth.speak(u);}
+function add(who,txt,cls){let m=document.createElement("div");m.className="msg "+who+(cls?" "+cls:"");
+ let label={bot:"eGuardian AI",operator:"Operador · Monitoreo",system:"Sistema"}[who];
+ m.innerHTML=(label?'<div class="who">'+label+'</div>':'')+'<div class="bubble"></div>';
+ m.querySelector(".bubble").textContent=txt;log.appendChild(m);log.scrollTop=log.scrollHeight;}
+function bot(t,cls){add("bot",t,cls);mode("speaking");speak(t,()=>mode("idle"));}
+const QUICK=[["Tengo una visita","Vengo de visita al departamento"],["Soy delivery","Tengo una entrega"],
+ ["Información","¿Cuál es el horario de la piscina?"],["Hablar con conserjería","Quiero hablar con un operador"]];
+const q=$("quick");QUICK.forEach(([l,t])=>{let b=document.createElement("button");b.className="chip";b.textContent=l;b.onclick=()=>handle(t);q.appendChild(b);});
+
+function escalate(urgent){mode(urgent?"alert":"thinking");
+ add("system",urgent?"🚨 Escalando como PRIORIDAD ALTA al centro de monitoreo…":"Conectando con un operador…");
+ setTimeout(()=>{add("operator","Hola, le habla Daniela del centro de monitoreo eGuardian. Ya tomé el control de la atención. ¿Me confirma su nombre, por favor?");mode("idle");ctx={stage:"op",res:ctx.res};},urgent?1200:2200);}
+
+function handle(raw){let text=(raw||"").trim();if(!text)return;add("user",text);mode("thinking");
+ setTimeout(()=>{
+  if(ctx.stage==="await_res"){let r=findRes(text);
+   if(!r){bot("No logré identificar al residente. ¿Me indica el número de departamento o el nombre completo?");return;}
+   ctx={stage:"notify",res:r};bot("Perfecto. Voy a contactar a "+r.n+", departamento "+r.apt+". Un momento, por favor…");
+   setTimeout(()=>{if(r.auto||Math.random()>.25){bot(r.n+" autorizó su ingreso. Diríjase al ascensor principal, piso "+r.apt[0]+". Bienvenido.");ctx={stage:"done"};}
+    else{bot("Lo siento, "+r.n+" no autorizó el ingreso en este momento. ¿Desea que le contacte la conserjería?");ctx={stage:"post_reject",res:r};}},2600);return;}
+  if(ctx.stage==="await_del"){let r=findRes(text);
+   if(!r){bot("¿Para qué departamento es la entrega? Indíqueme el número, por favor.");return;}
+   ctx={stage:"done"};bot("Registrada la entrega para "+r.n+", depto "+r.apt+". Notifiqué al residente, folio #"+(1000+(Math.random()*9000|0))+". Puede dejar el paquete en el casillero inteligente N°4. ¡Gracias!");return;}
+  if(ctx.stage==="post_reject"){if(/(operador|conserj|si|claro|por favor|contact)/.test(norm(text)))escalate(false);
+   else{bot("Entendido. He registrado la novedad. Que tenga un buen día.");ctx={stage:"done"};}return;}
+  let i=intent(text);
+  if(i==="greeting")bot("¡Hola! ¿Viene de visita, trae una entrega o necesita información?");
+  else if(i==="visit"){let r=findRes(text);
+   if(r){ctx={stage:"notify",res:r};bot("Entendido, busca a "+r.n+" del departamento "+r.apt+". Lo contacto ahora…");
+    setTimeout(()=>{if(r.auto||Math.random()>.25){bot(r.n+" autorizó su ingreso. Diríjase al ascensor principal, piso "+r.apt[0]+". Bienvenido.");ctx={stage:"done"};}
+     else{bot(r.n+" no autorizó el ingreso. ¿Desea que le contacte la conserjería?");ctx={stage:"post_reject",res:r};}},2600);}
+   else{ctx={stage:"await_res"};bot("Con gusto. ¿A qué residente o departamento desea visitar?");}}
+  else if(i==="delivery"){ctx={stage:"await_del"};bot("Perfecto, una entrega. ¿Para qué departamento o residente es el paquete?");}
+  else if(i==="info"){let t=norm(text),a="Edificio Costanera Center, Av. Andrés Bello 2425, Providencia.";
+   if(t.includes("piscina"))a="La piscina está disponible de 8:00 a 22:00 hrs.";
+   else if(t.includes("gimnasio"))a="El gimnasio funciona de 6:00 a 23:00 hrs.";
+   else if(t.includes("quincho"))a="El quincho se reserva directamente en conserjería.";
+   else if(t.includes("estacionamiento"))a="El estacionamiento de visitas está en el subterráneo -2, sectores V1 a V8.";
+   else if(t.includes("wifi"))a="La red de áreas comunes es eGuardian-Guest; la clave se solicita en conserjería.";
+   bot(a+" ¿Necesita algo más?");}
+  else if(i==="emergency"){mode("alert");add("bot","He detectado una posible emergencia. Estoy alertando a seguridad. Mantenga la calma, ya viene ayuda.","alert");speak("Emergencia detectada. Alertando a seguridad.");setTimeout(()=>escalate(true),1500);}
+  else if(i==="escalate")escalate(false);
+  else bot("Disculpe, no comprendí bien. Puede decir: «vengo al depto 302», «tengo una entrega» o «necesito información».");
+ },850);}
+
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,listening=false;
+if(SR){rec=new SR();rec.lang="es-CL";rec.continuous=false;rec.interimResults=false;}
+$("mic").onclick=()=>{if(!rec){handle("(El micrófono no está disponible en este navegador)");return;}
+ if(listening){rec.stop();listening=false;$("mic").classList.remove("on");mode("idle");return;}
+ listening=true;$("mic").classList.add("on");mode("listening");
+ rec.onresult=e=>{listening=false;$("mic").classList.remove("on");handle(e.results[0][0].transcript);};
+ rec.onerror=()=>{listening=false;$("mic").classList.remove("on");mode("idle");};
+ try{rec.start();}catch(e){}};
+$("field").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.value.trim()){handle(e.target.value);e.target.value="";}});
+$("send").onclick=()=>{let f=$("field");if(f.value.trim()){handle(f.value);f.value="";}};
+$("start").onclick=()=>{$("welcome").style.display="none";$("session").style.display="flex";
+ log.innerHTML="";ctx={stage:null,res:null};let h=new Date().getHours();
+ let p=h<12?"Buenos días":h<19?"Buenas tardes":"Buenas noches";
+ setTimeout(()=>bot(p+". Bienvenido a Edificio Costanera Center. Soy eGuardian, el conserje virtual. ¿En qué puedo ayudarle hoy?"),350);};
+$("end").onclick=()=>{synth&&synth.cancel();$("session").style.display="none";$("welcome").style.display="flex";log.innerHTML="";ctx={stage:null,res:null};};
+</script>
+</body>
+</html>
