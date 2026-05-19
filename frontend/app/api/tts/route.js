@@ -5,7 +5,7 @@ export async function POST(request) {
     return new Response("ELEVENLABS_API_KEY no configurada", { status: 503 });
   }
 
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL";
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || "FGY2WhTYpPnrIDTdsKH5"; // Laura
 
   const res = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -19,9 +19,9 @@ export async function POST(request) {
         text,
         model_id: "eleven_multilingual_v2",
         voice_settings: {
-          stability: 0.45,
-          similarity_boost: 0.80,
-          style: 0.25,
+          stability: 0.35,
+          similarity_boost: 0.85,
+          style: 0.42,
           use_speaker_boost: true,
         },
       }),
