@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
 /**
@@ -67,15 +69,15 @@ function classifyIntent(text) {
 
 // ------------------------------ Speech -------------------------------------
 function useSpeech() {
-  const [supported, setSupported] = useState({ tts: false, stt: false });
+  const [supported, setSupported] = useState({ tts: true, stt: false });
   const recRef = useRef(null);
+  const audioRef = useRef(null);
 
   useEffect(() => {
-    const tts = typeof window !== "undefined" && "speechSynthesis" in window;
     const SR =
       typeof window !== "undefined" &&
       (window.SpeechRecognition || window.webkitSpeechRecognition);
-    setSupported({ tts, stt: !!SR });
+    setSupported({ tts: true, stt: !!SR });
     if (SR) {
       const r = new SR();
       r.lang = "es-CL";
@@ -85,24 +87,60 @@ function useSpeech() {
     }
   }, []);
 
-  const speak = useCallback(
-    (text, onEnd) => {
-      if (!("speechSynthesis" in window)) {
-        onEnd && onEnd();
-        return;
-      }
+  const cancelAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "es-CL";
-      u.rate = 1.02;
-      u.pitch = 1.0;
-      const voices = window.speechSynthesis.getVoices();
-      const es = voices.find((v) => /es(-|_)?(CL|MX|ES|US)?/i.test(v.lang));
-      if (es) u.voice = es;
-      u.onend = () => onEnd && onEnd();
-      window.speechSynthesis.speak(u);
+    }
+  }, []);
+
+  const speakFallback = useCallback((text, onEnd) => {
+    if (!("speechSynthesis" in window)) { onEnd && onEnd(); return; }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "es-CL";
+    u.rate = 1.02;
+    u.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const es = voices.find((v) => /es(-|_)?(CL|MX|ES|US)?/i.test(v.lang));
+    if (es) u.voice = es;
+    u.onend = () => onEnd && onEnd();
+    window.speechSynthesis.speak(u);
+  }, []);
+
+  const speak = useCallback(
+    async (text, onEnd) => {
+      cancelAudio();
+      try {
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        if (!res.ok) throw new Error(`TTS ${res.status}`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          audioRef.current = null;
+          onEnd && onEnd();
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(url);
+          audioRef.current = null;
+          speakFallback(text, onEnd);
+        };
+        await audio.play();
+      } catch {
+        speakFallback(text, onEnd);
+      }
     },
-    []
+    [cancelAudio, speakFallback]
   );
 
   const listen = useCallback((onResult, onError) => {
@@ -126,7 +164,7 @@ function useSpeech() {
     } catch (_) {}
   }, []);
 
-  return { supported, speak, listen, stopListen };
+  return { supported, speak, cancelAudio, listen, stopListen };
 }
 
 // ------------------------------- Avatar ------------------------------------
@@ -166,7 +204,7 @@ const QUICK = [
 ];
 
 export default function Totem() {
-  const { supported, speak, listen, stopListen } = useSpeech();
+  const { supported, speak, cancelAudio, listen, stopListen } = useSpeech();
   const [online] = useState(true);
   const [screen, setScreen] = useState("welcome"); // welcome | session
   const [avatar, setAvatar] = useState("idle");
@@ -393,7 +431,7 @@ export default function Totem() {
   };
 
   const endSession = () => {
-    window.speechSynthesis && window.speechSynthesis.cancel();
+    cancelAudio();
     setScreen("welcome");
     setMessages([]);
     setCtx({ stage: null, resident: null });
