@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\AccessCodeController;
+use App\Http\Controllers\Api\ApartmentController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CallController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\IncidentController;
@@ -27,8 +30,16 @@ Route::prefix('v1')->group(function () {
 
     // ---- Tótem (guard de dispositivo, rate-limit alto) ----
     Route::middleware(['auth:device', 'throttle:120,1'])->group(function () {
-        Route::post('conversations',                 [ConversationController::class, 'open']);
+        Route::post('conversations',                     [ConversationController::class, 'open']);
         Route::post('conversations/{conversation}/turn', [ConversationController::class, 'turn']);
+        Route::post('calls',                             [CallController::class, 'store']);
+        Route::post('visits/qr/redeem',                 [VisitController::class, 'redeemQr']);
+        Route::get('apartments/directory',              [ApartmentController::class, 'directory']);
+    });
+
+    // ---- Clave de acceso (throttle estricto + lockout en servicio) ----
+    Route::middleware(['auth:device', 'throttle:30,1'])->group(function () {
+        Route::post('access-codes/verify', [AccessCodeController::class, 'verify']);
     });
 
     // ---- Panel administrativo / operadores (JWT usuario) ----

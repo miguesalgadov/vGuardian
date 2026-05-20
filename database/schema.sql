@@ -250,6 +250,57 @@ CREATE TABLE logs (
 CREATE INDEX idx_logs_condo_date ON logs(condominium_id, created_at);
 CREATE INDEX idx_logs_entity     ON logs(entity_type, entity_id);
 
+-- ---------------------------------------------------------------------------
+-- Claves de acceso (PINs)
+-- ---------------------------------------------------------------------------
+CREATE TABLE access_codes (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    condominium_id      UUID NOT NULL REFERENCES condominiums(id) ON DELETE CASCADE,
+    code_hash           VARCHAR(255) NOT NULL,
+    type                VARCHAR(20)  NOT NULL CHECK (type IN ('resident','temporary','staff','master')),
+    owner_resident_id   UUID REFERENCES residents(id) ON DELETE SET NULL,
+    label               VARCHAR(120),
+    valid_from          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    valid_until         TIMESTAMPTZ,
+    max_uses            INTEGER,
+    uses_count          INTEGER NOT NULL DEFAULT 0,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'active' CHECK (status IN ('active','revoked','exhausted')),
+    created_by_user_id  UUID NOT NULL REFERENCES users(id),
+    created_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    deleted_at          TIMESTAMPTZ
+);
+CREATE INDEX idx_access_codes_condo_status ON access_codes(condominium_id, status);
+
+-- Intentos de PIN (append-only, para anti-fraude)
+CREATE TABLE access_code_attempts (
+    id                   BIGSERIAL PRIMARY KEY,
+    condominium_id       UUID NOT NULL,
+    device_id            UUID NOT NULL,
+    code_hash_attempted  VARCHAR(255) NOT NULL,
+    success              BOOLEAN NOT NULL,
+    ip_address           INET,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_aca_device_date ON access_code_attempts(device_id, created_at);
+
+-- Casilleros inteligentes (opcional según settings.lockers_enabled)
+CREATE TABLE lockers (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    condominium_id   UUID NOT NULL REFERENCES condominiums(id) ON DELETE CASCADE,
+    number           VARCHAR(10) NOT NULL,
+    status           VARCHAR(20) NOT NULL DEFAULT 'available' CHECK (status IN ('available','occupied','maintenance')),
+    current_visit_id UUID,
+    current_code     VARCHAR(8),
+    assigned_at      TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (condominium_id, number)
+);
+
+-- Columna destino de delivery en visits
+ALTER TABLE visits ADD COLUMN IF NOT EXISTS delivery_destination VARCHAR(20) CHECK (delivery_destination IN ('lobby','apartment','locker'));
+
 -- ============================================================================
 --  Vista de apoyo para el dashboard
 -- ============================================================================

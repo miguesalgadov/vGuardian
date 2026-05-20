@@ -87,3 +87,28 @@ INSERT INTO conversation_messages (conversation_id,sender,content,intent,confide
 INSERT INTO incidents (condominium_id,reason,priority,status) VALUES
  ('11111111-1111-1111-1111-111111111111',
   'Emergencia declarada por visitante en Tótem Lobby','critical','open');
+
+-- Claves de acceso (PINs de prueba) -----------------------------------------
+-- Hashes bcrypt de: 1234, 5678, 9999, 7890
+-- Para probar en local ejecutar: echo password_hash('1234', PASSWORD_BCRYPT)
+INSERT INTO access_codes (condominium_id,code_hash,type,label,valid_from,valid_until,max_uses,uses_count,status,created_by_user_id) VALUES
+ ('11111111-1111-1111-1111-111111111111',
+  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+  'resident','Residente Depto 302',now(),NULL,NULL,0,'active',
+  '22222222-0000-0000-0000-000000000001'),
+ ('11111111-1111-1111-1111-111111111111',
+  '$2y$10$TKh8H1.PvD3P1oE04V4h/.VH.V.7N0GJR1gVzLpeMKVrSMyvPiJe.',
+  'temporary','Técnico HVAC',now(),now() + interval '30 days',5,0,'active',
+  '22222222-0000-0000-0000-000000000001'),
+ ('11111111-1111-1111-1111-111111111111',
+  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+  'master','Administración General',now(),NULL,NULL,0,'active',
+  '22222222-0000-0000-0000-000000000001');
+
+-- Casilleros inteligentes ----------------------------------------------------
+INSERT INTO lockers (condominium_id,number,status) VALUES
+ ('11111111-1111-1111-1111-111111111111','1','available'),
+ ('11111111-1111-1111-1111-111111111111','2','available'),
+ ('11111111-1111-1111-1111-111111111111','3','occupied'),
+ ('11111111-1111-1111-1111-111111111111','4','available'),
+ ('11111111-1111-1111-1111-111111111111','5','maintenance');
