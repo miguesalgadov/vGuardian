@@ -93,43 +93,25 @@ function useSpeech() {
 
   const speak = useCallback((text, onEnd) => {
     if (!("speechSynthesis" in window)) { onEnd?.(); return; }
-
     const synth = window.speechSynthesis;
-    synth.cancel();
+    if (synth.speaking) synth.cancel();
 
-    const buildAndSpeak = () => {
-      const voices = synth.getVoices();
-      const es = voices.filter((v) => /^es/i.test(v.lang));
-      const best =
-        es.find((v) => /natural|online/i.test(v.name)) ||
-        es.find((v) => /google/i.test(v.name)) ||
-        es.find((v) => /microsoft/i.test(v.name)) ||
-        es[0] ||
-        null;
-
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "es-CL";
-      u.rate = 1.0;
-      u.pitch = 1.0;
-      if (best) u.voice = best;
-      u.onend = () => onEnd?.();
-      u.onerror = () => onEnd?.();
-
-      // Fix bug de Chrome: speechSynthesis puede quedar en estado "paused"
-      synth.resume();
-      synth.speak(u);
-    };
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "es-CL";
+    u.rate = 1.0;
+    u.onend = () => onEnd?.();
+    u.onerror = (e) => { console.error("[TTS] error:", e.error); onEnd?.(); };
 
     const voices = synth.getVoices();
-    if (voices.length > 0) {
-      buildAndSpeak();
-    } else {
-      // voiceschanged todavía no disparó — esperarlo con timeout de seguridad
-      let fired = false;
-      const fire = () => { if (!fired) { fired = true; buildAndSpeak(); } };
-      synth.addEventListener("voiceschanged", fire, { once: true });
-      setTimeout(fire, 800); // fallback si voiceschanged nunca llega
-    }
+    const es = voices.filter((v) => /^es/i.test(v.lang));
+    const best =
+      es.find((v) => /natural|online/i.test(v.name)) ||
+      es.find((v) => /google/i.test(v.name)) ||
+      es[0];
+    if (best) u.voice = best;
+
+    console.log("[TTS] voice:", best?.name ?? "default", "| text:", text.slice(0, 40));
+    synth.speak(u);
   }, []);
 
   const listen = useCallback((onResult, onError) => {
@@ -219,16 +201,13 @@ export default function Totem() {
   const greet = () => {
     const hour = new Date().getHours();
     const part = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+    const greeting = `${part}. Bienvenido a ${BUILDING.name}. Soy eGuardian, el conserje virtual. ¿En qué puedo ayudarle hoy?`;
     setScreen("session");
-    setMessages([]);
+    setMessages([{ who: "bot", text: greeting }]);
     setCtx({ stage: null, resident: null });
-    setTimeout(
-      () =>
-        pushBot(
-          `${part}. Bienvenido a ${BUILDING.name}. Soy eGuardian, el conserje virtual. ¿En qué puedo ayudarle hoy?`
-        ),
-      350
-    );
+    setAvatar("speaking");
+    // Habla directamente en el gesto del usuario (sin setTimeout) para evitar bloqueos del navegador
+    speak(greeting, () => setAvatar("idle"));
   };
 
   // ---- conversation reducer ------------------------------------------------
