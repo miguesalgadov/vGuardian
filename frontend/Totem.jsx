@@ -73,10 +73,8 @@ function useSpeech() {
   const recRef = useRef(null);
 
   useEffect(() => {
-    const hasTts = typeof window !== "undefined" && "speechSynthesis" in window;
-    const SR =
-      typeof window !== "undefined" &&
-      (window.SpeechRecognition || window.webkitSpeechRecognition);
+    const hasTts = "speechSynthesis" in window;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     setSupported({ tts: hasTts, stt: !!SR });
     if (SR) {
       const r = new SR();
@@ -85,60 +83,54 @@ function useSpeech() {
       r.interimResults = false;
       recRef.current = r;
     }
-  }, []);
-
-  const getBestVoice = useCallback(() => {
-    const all = window.speechSynthesis.getVoices();
-    const es = all.filter((v) => /^es/i.test(v.lang));
-    // Prioridad: voces neurales de Edge/Chrome > Google > Microsoft > cualquier español
-    return (
-      es.find((v) => /natural|online/i.test(v.name)) ||
-      es.find((v) => /google/i.test(v.name)) ||
-      es.find((v) => /microsoft/i.test(v.name)) ||
-      es[0] ||
-      null
-    );
+    // Pre-cargar voces al montar para que estén listas cuando el usuario hable
+    if (hasTts) window.speechSynthesis.getVoices();
   }, []);
 
   const cancelAudio = useCallback(() => {
-    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    window.speechSynthesis?.cancel();
   }, []);
 
-  const speak = useCallback(
-    (text, onEnd) => {
-      if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-        onEnd?.();
-        return;
-      }
-      window.speechSynthesis.cancel();
+  const speak = useCallback((text, onEnd) => {
+    if (!("speechSynthesis" in window)) { onEnd?.(); return; }
 
-      // Divide en frases para evitar el bug de Chrome que corta textos largos (~15 s)
-      const chunks =
-        text.match(/[^.!?…]+[.!?…]*/g)?.map((s) => s.trim()).filter(Boolean) ?? [text];
-      let i = 0;
+    const synth = window.speechSynthesis;
+    synth.cancel();
 
-      const next = () => {
-        if (i >= chunks.length) { onEnd?.(); return; }
-        const u = new SpeechSynthesisUtterance(chunks[i++]);
-        u.lang = "es-CL";
-        u.rate = 1.02;
-        u.pitch = 1.0;
-        const v = getBestVoice();
-        if (v) u.voice = v;
-        u.onend = next;
-        u.onerror = () => onEnd?.();
-        window.speechSynthesis.speak(u);
-      };
+    const buildAndSpeak = () => {
+      const voices = synth.getVoices();
+      const es = voices.filter((v) => /^es/i.test(v.lang));
+      const best =
+        es.find((v) => /natural|online/i.test(v.name)) ||
+        es.find((v) => /google/i.test(v.name)) ||
+        es.find((v) => /microsoft/i.test(v.name)) ||
+        es[0] ||
+        null;
 
-      // Las voces pueden no estar cargadas aún al primer render
-      if (window.speechSynthesis.getVoices().length === 0) {
-        window.speechSynthesis.addEventListener("voiceschanged", next, { once: true });
-      } else {
-        next();
-      }
-    },
-    [getBestVoice]
-  );
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "es-CL";
+      u.rate = 1.0;
+      u.pitch = 1.0;
+      if (best) u.voice = best;
+      u.onend = () => onEnd?.();
+      u.onerror = () => onEnd?.();
+
+      // Fix bug de Chrome: speechSynthesis puede quedar en estado "paused"
+      synth.resume();
+      synth.speak(u);
+    };
+
+    const voices = synth.getVoices();
+    if (voices.length > 0) {
+      buildAndSpeak();
+    } else {
+      // voiceschanged todavía no disparó — esperarlo con timeout de seguridad
+      let fired = false;
+      const fire = () => { if (!fired) { fired = true; buildAndSpeak(); } };
+      synth.addEventListener("voiceschanged", fire, { once: true });
+      setTimeout(fire, 800); // fallback si voiceschanged nunca llega
+    }
+  }, []);
 
   const listen = useCallback((onResult, onError) => {
     const r = recRef.current;
