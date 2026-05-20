@@ -94,24 +94,28 @@ function useSpeech() {
   const speak = useCallback((text, onEnd) => {
     if (!("speechSynthesis" in window)) { onEnd?.(); return; }
     const synth = window.speechSynthesis;
-    if (synth.speaking) synth.cancel();
+    synth.cancel();
 
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "es-CL";
-    u.rate = 1.0;
-    u.onend = () => onEnd?.();
-    u.onerror = (e) => { console.error("[TTS] error:", e.error); onEnd?.(); };
+    // Chrome bug: cancel() seguido inmediatamente de speak() no produce audio.
+    // El setTimeout permite que Chrome procese el cancel antes de hablar.
+    setTimeout(() => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "es-CL";
+      u.rate = 1.0;
+      u.onend = () => onEnd?.();
+      u.onerror = (e) => { console.error("[TTS] error:", e.error); onEnd?.(); };
 
-    const voices = synth.getVoices();
-    const es = voices.filter((v) => /^es/i.test(v.lang));
-    const best =
-      es.find((v) => /natural|online/i.test(v.name)) ||
-      es.find((v) => /google/i.test(v.name)) ||
-      es[0];
-    if (best) u.voice = best;
+      const voices = synth.getVoices();
+      const es = voices.filter((v) => /^es/i.test(v.lang));
+      const best =
+        es.find((v) => /natural|online/i.test(v.name)) ||
+        es.find((v) => /google/i.test(v.name)) ||
+        es[0];
+      if (best) u.voice = best;
 
-    console.log("[TTS] voice:", best?.name ?? "default", "| text:", text.slice(0, 40));
-    synth.speak(u);
+      console.log("[TTS] speaking:", best?.name ?? "default", "| speaking:", synth.speaking, "paused:", synth.paused);
+      synth.speak(u);
+    }, 150);
   }, []);
 
   const listen = useCallback((onResult, onError) => {
