@@ -459,9 +459,6 @@ export default function Totem() {
             <button className="vg-cta" onClick={greet}>
               Toque para comenzar
             </button>
-            <div className="vg-welcome-foot">
-              {supported.stt ? "Atención por voz y texto" : "Atención por texto"}
-            </div>
           </main>
         ) : (
           /* ── Session screen ── */
