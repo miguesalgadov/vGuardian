@@ -360,76 +360,256 @@ function WelcomeScreen({ dispatch, clock }) {
 
 // ─────────────────────────── Visit Flow ───────────────────────────────────
 
-function VisitScreen({ dispatch, clock }) {
-  const [apt, setApt] = useState("");
-  const [name, setName] = useState("");
-  const [sub, setSub] = useState("input");
-  const [result, setResult] = useState(null);
+// QR codes mock: token → resident
+const MOCK_QR = {
+  "VG-QR-302-DEMO":  RESIDENTS.find((r) => r.apartment === "302"),
+  "VG-QR-1204-DEMO": RESIDENTS.find((r) => r.apartment === "1204"),
+};
+
+function QrScannerView({ onDetected, onError }) {
+  const [phase, setPhase] = useState("scanning"); // scanning | detected | failed
+  const [progress, setProgress] = useState(0);
   const tid = useRef(null);
 
-  const call = () => {
-    if (apt.length < 2) return;
-    setSub("calling");
+  useEffect(() => {
+    // Simulate scan progress then random success/fail
+    const inc = setInterval(() => setProgress((p) => Math.min(p + rnd(8, 18), 100)), 300);
     tid.current = setTimeout(() => {
-      const r = findResidentByApt(apt);
-      if (!r) {
-        setResult({ status:"error", title:"Departamento no encontrado", body:`No existe el departamento ${apt} o no está activo. Consulte con conserjería.` });
-      } else if (r.status === "suspended") {
-        setResult({ status:"warning", title:"No disponible", body:"El residente no puede recibir visitas. Consulte con conserjería." });
+      clearInterval(inc);
+      setProgress(100);
+      // 70 % chance of successful scan in demo
+      if (Math.random() > 0.3) {
+        setPhase("detected");
+        setTimeout(() => onDetected(Math.random() > 0.5 ? "VG-QR-302-DEMO" : "VG-QR-1204-DEMO"), 600);
       } else {
-        const ok = r.autoApprove || Math.random() > 0.3;
-        if (ok) {
-          setResult({ status:"success", title:"Acceso autorizado", body:`Departamento ${r.apartment} · Torre ${r.tower} · Piso ${r.floor}\nDiríjase al ascensor principal.\n\nFolio: #V-${rnd(1000,9999)}` });
-        } else {
-          setResult({ status:"error", title:"Acceso no autorizado", body:"El residente no respondió o rechazó la visita. Puede llamar a conserjería." });
-        }
+        setPhase("failed");
+        setTimeout(() => onError("no_qr"), 1000);
       }
-      setSub("result");
-    }, 3500);
+    }, 3200);
+    return () => { clearInterval(inc); clearTimeout(tid.current); };
+  }, [onDetected, onError]);
+
+  return (
+    <div className="qr-wrap">
+      <div className={`qr-frame qr-frame--${phase}`}>
+        {/* Corner brackets */}
+        <div className="qr-corner qr-corner--tl"/>
+        <div className="qr-corner qr-corner--tr"/>
+        <div className="qr-corner qr-corner--bl"/>
+        <div className="qr-corner qr-corner--br"/>
+        {/* Scan line */}
+        {phase === "scanning" && <div className="qr-scanline"/>}
+        {/* State icon */}
+        {phase === "detected" && (
+          <div className="qr-state qr-state--ok">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="40" height="40"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+        )}
+        {phase === "failed" && (
+          <div className="qr-state qr-state--err">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="40" height="40"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </div>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      <div className="qr-progress-wrap">
+        <div className="qr-progress-bar" style={{ width: `${progress}%` }}/>
+      </div>
+
+      <p className="qr-hint">
+        {phase === "scanning" && "Apunte la cámara al código QR de su invitación"}
+        {phase === "detected" && "QR detectado ✓"}
+        {phase === "failed" && "No se detectó código. Intente de nuevo o use el teclado."}
+      </p>
+    </div>
+  );
+}
+
+function VisitScreen({ dispatch, clock }) {
+  // sub: choice | qr | input | calling | result
+  const [sub, setSub] = useState("choice");
+  const [apt, setApt] = useState("");
+  const [name, setName] = useState("");
+  const [result, setResult] = useState(null);
+  const [qrKey, setQrKey] = useState(0); // re-mount QR scanner on retry
+  const tid = useRef(null);
+
+  // Resolve result after resident response simulation
+  const resolveCall = (targetApt) => {
+    const r = findResidentByApt(targetApt);
+    if (!r) {
+      setResult({ status:"error", title:"Departamento no encontrado", body:`No existe el departamento ${targetApt} o no está activo.\nConsulte con conserjería.` });
+    } else if (r.status === "suspended") {
+      setResult({ status:"warning", title:"No disponible", body:"El residente no puede recibir visitas en este momento.\nConsulte con conserjería." });
+    } else {
+      const ok = r.autoApprove || Math.random() > 0.3;
+      if (ok) {
+        setResult({ status:"success", title:"Acceso autorizado", body:`Departamento ${r.apartment} · Torre ${r.tower} · Piso ${r.floor}\nDiríjase al ascensor principal.\n\nFolio: #V-${rnd(1000,9999)}` });
+      } else {
+        setResult({ status:"error", title:"Acceso no autorizado", body:"El residente no respondió o rechazó la visita.\nPuede llamar a conserjería para asistencia." });
+      }
+    }
+    setSub("result");
   };
 
-  const timeout = () => { clearTimeout(tid.current); setResult({ status:"warning", title:"Sin respuesta", body:"El residente no contestó. Lo derivamos a conserjería." }); setSub("result"); };
+  const startCall = (targetApt) => {
+    setSub("calling");
+    tid.current = setTimeout(() => resolveCall(targetApt), 3500);
+  };
+
+  const handleQrDetected = (token) => {
+    const resident = MOCK_QR[token];
+    if (!resident) {
+      setResult({ status:"error", title:"QR inválido", body:"Este código no corresponde a una invitación activa de este edificio.", qrFallback: true });
+      setSub("result");
+      return;
+    }
+    // Valid QR → go straight to calling
+    startCall(resident.apartment);
+  };
+
+  const handleQrError = () => {
+    setResult({ status:"warning", title:"QR no detectado", body:"No fue posible leer el código. Puede intentarlo de nuevo o ingresar el departamento manualmente.", qrFallback: true });
+    setSub("result");
+  };
+
+  const timeout = () => {
+    clearTimeout(tid.current);
+    setResult({ status:"warning", title:"Sin respuesta", body:"El residente no contestó dentro del plazo.\nLo derivamos a conserjería." });
+    setSub("result");
+  };
+
   useEffect(() => () => clearTimeout(tid.current), []);
+
+  // Back logic per sub-screen
+  const handleBack = () => {
+    if (sub === "choice") { dispatch({ type:"RESET" }); return; }
+    if (sub === "qr" || sub === "input") { setSub("choice"); setApt(""); return; }
+    if (sub === "result") {
+      // If came from QR fallback, go back to choice
+      setSub(result?.qrFallback ? "choice" : "input");
+      setApt(""); setResult(null);
+    }
+  };
+
+  const subtitleMap = {
+    choice:  "Seleccione cómo desea ingresar",
+    qr:      "Escanee el código QR de su invitación",
+    input:   "Ingrese el departamento a visitar",
+    calling: "Contactando al residente…",
+    result:  "Resultado",
+  };
+
+  const orbMap = {
+    choice: "idle", qr: "thinking", input: "idle",
+    calling: "thinking", result: result?.status === "success" ? "speaking" : "idle",
+  };
 
   return (
     <div className="flow-screen">
       <TopBar
         title="Visita"
-        subtitle={sub==="input"?"Ingrese el departamento a visitar":sub==="calling"?"Contactando al residente…":"Resultado"}
-        onBack={sub==="result" ? ()=>{ setSub("input"); setApt(""); setResult(null); } : ()=>dispatch({ type:"RESET" })}
+        subtitle={subtitleMap[sub]}
+        onBack={sub !== "calling" ? handleBack : undefined}
         onHome={() => dispatch({ type:"RESET" })}
         clock={clock}
-        orbMode={sub==="calling"?"thinking":sub==="result"?(result?.status==="success"?"speaking":"idle"):"idle"}
+        orbMode={orbMap[sub] ?? "idle"}
       />
+
       <div className="flow-body">
-        {sub==="input" && (
+
+        {/* ── Sub-menú: elegir método ── */}
+        {sub === "choice" && (
+          <div className="visit-choice">
+            <p className="visit-choice__prompt">¿Cómo desea registrar su visita?</p>
+
+            <button className="visit-btn" onClick={() => setSub("qr")}>
+              <div className="visit-btn__icon visit-btn__icon--qr">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="32" height="32">
+                  <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                  <rect x="3" y="14" width="7" height="7" rx="1"/>
+                  <path d="M14 14h2v2h-2zM18 14h3M14 18h2M18 18h3v3M14 21h2"/>
+                </svg>
+              </div>
+              <div className="visit-btn__text">
+                <strong>Tengo un código QR</strong>
+                <small>Escanee la invitación digital que recibió</small>
+              </div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18" className="visit-btn__arrow"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+
+            <button className="visit-btn" onClick={() => setSub("input")}>
+              <div className="visit-btn__icon visit-btn__icon--call">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="32" height="32">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.35 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 6.44 6.44l.96-.96a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+              </div>
+              <div className="visit-btn__text">
+                <strong>Llamar a un residente</strong>
+                <small>Ingrese el número de departamento</small>
+              </div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18" className="visit-btn__arrow"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+        )}
+
+        {/* ── QR Scanner ── */}
+        {sub === "qr" && (
+          <QrScannerView
+            key={qrKey}
+            onDetected={handleQrDetected}
+            onError={handleQrError}
+          />
+        )}
+
+        {/* ── Keypad (llamar a residente) ── */}
+        {sub === "input" && (
           <>
             <div className="flow-field">
               <label className="flow-label">Su nombre (opcional)</label>
-              <input className="flow-input" value={name} placeholder="Ej: Pedro Mora" onChange={(e)=>setName(e.target.value)}/>
+              <input className="flow-input" value={name} placeholder="Ej: Pedro Mora" onChange={(e) => setName(e.target.value)}/>
             </div>
-            <NumericKeypad value={apt} onChange={setApt} onSubmit={call} maxLength={4} label="Número de departamento" masked={false}/>
+            <NumericKeypad
+              value={apt} onChange={setApt}
+              onSubmit={() => startCall(apt)}
+              maxLength={4} label="Número de departamento" masked={false}
+            />
           </>
         )}
-        {sub==="calling" && (
+
+        {/* ── Calling ── */}
+        {sub === "calling" && (
           <CallingScreen
-            target={`Departamento ${apt}`}
+            target={`Departamento ${apt || "…"}`}
             subtitle="Notificando al residente…"
-            onCancel={()=>{ clearTimeout(tid.current); setSub("input"); }}
+            onCancel={() => { clearTimeout(tid.current); setSub("input"); }}
             onTimeout={timeout}
             timeoutSeconds={30}
           />
         )}
-        {sub==="result" && result && (
+
+        {/* ── Result ── */}
+        {sub === "result" && result && (
           <ResultCard status={result.status} title={result.title} body={result.body}
             actions={
               <div className="rbns">
-                {result.status!=="success" && <button className="btn btn--outline" onClick={()=>dispatch({ type:"GOTO", screen:"concierge" })}>Llamar a Conserje</button>}
-                <button className="btn btn--primary" onClick={()=>dispatch({ type:"RESET" })}>Finalizar</button>
+                {result.qrFallback && (
+                  <button className="btn btn--outline" onClick={() => { setResult(null); setSub("qr"); setQrKey((k) => k + 1); }}>
+                    Reintentar QR
+                  </button>
+                )}
+                {result.status !== "success" && (
+                  <button className="btn btn--outline" onClick={() => dispatch({ type:"GOTO", screen:"concierge" })}>
+                    Llamar a Conserje
+                  </button>
+                )}
+                <button className="btn btn--primary" onClick={() => dispatch({ type:"RESET" })}>Finalizar</button>
               </div>
             }
           />
         )}
+
       </div>
     </div>
   );
@@ -1191,6 +1371,37 @@ const CSS = `
 /* ── Footer ── */
 .vg-footer { font-size:9px; color:#1e293b; text-align:center; padding:9px 20px 11px; border-top:1px solid rgba(255,255,255,.05); line-height:1.55; flex-shrink:0; }
 
+/* ── Visit Choice ── */
+.visit-choice { display:flex; flex-direction:column; gap:12px; width:100%; }
+.visit-choice__prompt { font-size:13px; color:#64748B; text-align:center; margin-bottom:4px; }
+.visit-btn { display:flex; align-items:center; gap:14px; padding:18px 18px; border-radius:16px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); cursor:pointer; font-family:'Manrope',sans-serif; text-align:left; min-height:84px; transition:.2s; width:100%; }
+.visit-btn:hover { border-color:rgba(46,139,255,.45); background:rgba(46,139,255,.08); transform:translateY(-1px); }
+.visit-btn:active { transform:scale(0.98); }
+.visit-btn__icon { width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.visit-btn__icon--qr   { background:rgba(139,92,246,.12); color:#8b5cf6; border:1px solid rgba(139,92,246,.2); }
+.visit-btn__icon--call { background:rgba(46,139,255,.12); color:#2e8bff; border:1px solid rgba(46,139,255,.2); }
+.visit-btn__text { display:flex; flex-direction:column; gap:4px; flex:1; }
+.visit-btn__text strong { font-size:15px; font-weight:700; color:#E2E8F0; }
+.visit-btn__text small { font-size:12px; color:#64748B; }
+.visit-btn__arrow { color:#334155; flex-shrink:0; transition:color .2s; }
+.visit-btn:hover .visit-btn__arrow { color:#2e8bff; }
+
+/* ── QR Scanner ── */
+.qr-wrap { display:flex; flex-direction:column; align-items:center; gap:16px; width:100%; padding:8px 0; }
+.qr-frame { position:relative; width:220px; height:220px; background:rgba(0,0,0,.45); border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.qr-corner { position:absolute; width:28px; height:28px; border-color:#2e8bff; border-style:solid; border-width:0; }
+.qr-corner--tl { top:8px;    left:8px;    border-top-width:3px;    border-left-width:3px;    border-top-left-radius:4px; }
+.qr-corner--tr { top:8px;    right:8px;   border-top-width:3px;    border-right-width:3px;   border-top-right-radius:4px; }
+.qr-corner--bl { bottom:8px; left:8px;    border-bottom-width:3px; border-left-width:3px;    border-bottom-left-radius:4px; }
+.qr-corner--br { bottom:8px; right:8px;   border-bottom-width:3px; border-right-width:3px;   border-bottom-right-radius:4px; }
+.qr-scanline { position:absolute; left:12px; right:12px; height:2px; background:linear-gradient(90deg,transparent,#2e8bff,transparent); box-shadow:0 0 8px rgba(46,139,255,.8); animation:qr-scan 1.8s ease-in-out infinite; }
+.qr-frame--detected .qr-corner { border-color:#22c55e; }
+.qr-frame--failed   .qr-corner { border-color:#ef4444; }
+.qr-state { display:flex; align-items:center; justify-content:center; animation:rise .3s both; }
+.qr-progress-wrap { width:220px; height:3px; border-radius:2px; background:rgba(255,255,255,.08); overflow:hidden; }
+.qr-progress-bar { height:100%; background:linear-gradient(90deg,#2e8bff,#8b5cf6); border-radius:2px; transition:width .3s ease; }
+.qr-hint { font-size:12px; color:#64748B; text-align:center; max-width:240px; line-height:1.5; }
+
 /* ── Animations ── */
 @keyframes spin        { to { transform:rotate(360deg); } }
 @keyframes scan        { 0% { transform:translateY(-100%); } 100% { transform:translateY(100%); } }
@@ -1202,4 +1413,5 @@ const CSS = `
 @keyframes pulse-dot   { 0%,100% { opacity:1; } 50% { opacity:.45; } }
 @keyframes pulse-ring  { 0%,100% { box-shadow:0 0 0 0 rgba(34,211,238,.38); } 50% { box-shadow:0 0 0 8px rgba(34,211,238,0); } }
 @keyframes call-ring   { 0% { transform:scale(.6); opacity:.7; } 100% { transform:scale(1.4); opacity:0; } }
+@keyframes qr-scan     { 0%,100% { top:12px; } 50% { top:calc(100% - 14px); } }
 `;
