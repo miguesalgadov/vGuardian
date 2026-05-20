@@ -1,32 +1,24 @@
 export async function POST(request) {
   const { text } = await request.json();
 
-  if (!process.env.ELEVENLABS_API_KEY) {
-    return new Response("ELEVENLABS_API_KEY no configurada", { status: 503 });
+  if (!process.env.OPENAI_API_KEY) {
+    return new Response("OPENAI_API_KEY no configurada", { status: 503 });
   }
 
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || "FGY2WhTYpPnrIDTdsKH5"; // Laura
+  const voice = process.env.OPENAI_TTS_VOICE || "nova";
 
-  const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": process.env.ELEVENLABS_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-        model_id: "eleven_multilingual_v2",
-        voice_settings: {
-          stability: 0.35,
-          similarity_boost: 0.85,
-          style: 0.42,
-          use_speaker_boost: true,
-        },
-      }),
-    }
-  );
+  const res = await fetch("https://api.openai.com/v1/audio/speech", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "tts-1",
+      input: text,
+      voice,
+    }),
+  });
 
   if (!res.ok) {
     const msg = await res.text();
